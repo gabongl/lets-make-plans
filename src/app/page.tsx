@@ -123,7 +123,7 @@ export default function HomePage() {
 
   const handleCopyKakaoText = () => {
     if (!createdMeeting) return;
-    const text = `[Let's make plans! 📅]\n"${createdMeeting.title}" 약속 잡기 투표가 시작되었습니다!\n\n기간: ${createdMeeting.startDate} ~ ${createdMeeting.endDate}\n주관자: ${createdMeeting.hostName}\n\n👉 가능한 날짜 30초 만에 톡톡 찍어주세요:\n${getShareUrl()}`;
+    const text = `[Let's make plans! 📅]\n"${createdMeeting.title}" 약속 잡기 투표가 시작되었습니다!\n\n기간: ${createdMeeting.startDate} ~ ${createdMeeting.endDate}\n주관자: ${createdMeeting.hostName}\n\n아래 링크에 접속하여 투표하실 수 있습니다:\n${getShareUrl()}`;
     navigator.clipboard.writeText(text);
     setCopiedKakao(true);
     setTimeout(() => setCopiedKakao(false), 2000);

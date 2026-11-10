@@ -1912,7 +1912,7 @@ function PlanDetailView({
     if (cleanName) {
       text = `[Let's make plans! 💌 ${cleanName}님 투표 초대장]\n"${meeting.title}" 약속을 위해 가능한 날짜와 장소를 모으고 있습니다!\n\n${cleanName}님! 아래 링크에 접속하여 투표하실 수 있습니다:\n${url}\n${dateText}${timeText}${locText}\n👤 주관자: ${meeting.hostName}`;
     } else {
-      text = `[Let's make plans! 💌 약속 투표 초대장]\n"${meeting.title}" 약속을 위해 가능한 날짜와 장소를 모으고 있습니다!\n${dateText}${timeText}${locText}\n👤 주관자: ${meeting.hostName}\n\n👉 지금 30초 만에 가능한 일정을 찍어주세요:\n${url}`;
+      text = `[Let's make plans! 💌 약속 투표 초대장]\n"${meeting.title}" 약속을 위해 가능한 날짜와 장소를 모으고 있습니다!\n${dateText}${timeText}${locText}\n👤 주관자: ${meeting.hostName}\n\n아래 링크에 접속하여 투표하실 수 있습니다:\n${url}`;
     }
 
     const ok = await copyToClipboardRobust(text);

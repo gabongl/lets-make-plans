@@ -133,20 +133,12 @@ export default function HomePage() {
     <div className="flex-1 flex flex-col p-5 pb-10">
       {/* Header */}
       <header className="pt-3 pb-5 border-b border-slate-100 flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🐿️</span>
-            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-              Let's make plans!
-            </h1>
-          </div>
-          <p className="text-xs text-slate-500 mt-1 font-medium">
-            카톡 무한 핑퐁 끝! 30초 만에 공통 약속일 잡기
-          </p>
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">🐿️</span>
+          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+            Let's make plans!
+          </h1>
         </div>
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200">
-          모바일 최적화
-        </span>
       </header>
 
       {/* Main Creation Card */}

@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: "Let's make plans! - 친구들과 초간편 약속 잡기",
-  description: '카톡 무한 핑퐁 없이, 모바일 캘린더 터치 몇 번으로 모두가 가능한 공통 약속일을 찾아보세요.',
+  description: '모바일 캘린더 터치 몇 번으로 모두가 가능한 공통 약속일을 찾아보세요.',
 };
 
 export const viewport: Viewport = {

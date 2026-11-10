@@ -714,20 +714,12 @@ function CreatePlanView({
   return (
     <div className="flex-1 flex flex-col p-5 pb-10 bg-[#0b1329] text-slate-100">
       <header className="pt-3 pb-5 border-b border-[#1c2944] flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🐿️</span>
-            <h1 className="text-xl font-extrabold text-white tracking-tight">
-              Let's make plans!
-            </h1>
-          </div>
-          <p className="text-xs text-slate-400 mt-1 font-medium">
-            카톡 무한 핑퐁 끝! 날짜와 장소를 한 번에 확정하기
-          </p>
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">🐿️</span>
+          <h1 className="text-xl font-extrabold text-white tracking-tight">
+            Let's make plans!
+          </h1>
         </div>
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#17274a] text-sky-400 border border-[#2b4478]">
-          Dark Blue Edition
-        </span>
       </header>
 
       {/* Main Creation Card */}

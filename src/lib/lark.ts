@@ -1,14 +1,14 @@
-import { Meeting, ParticipantResponse } from '@/types';
-import fs from 'fs';
-import path from 'path';
+import { Meeting, ParticipantResponse } from '../types';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Environment variables for Lark Open Platform
 const LARK_API_DOMAIN = process.env.LARK_API_DOMAIN || 'https://open.larksuite.com'; // or https://open.feishu.cn
-const LARK_APP_ID = process.env.LARK_APP_ID;
-const LARK_APP_SECRET = process.env.LARK_APP_SECRET;
-const LARK_BASE_TOKEN = process.env.LARK_BASE_TOKEN; // Base App Token from URL
-const LARK_TABLE_MEETINGS = process.env.LARK_TABLE_MEETINGS;
-const LARK_TABLE_RESPONSES = process.env.LARK_TABLE_RESPONSES;
+const LARK_APP_ID = process.env.LARK_APP_ID || 'cli_a956e36179b8de15';
+const LARK_APP_SECRET = process.env.LARK_APP_SECRET || 'TDmS2UeL3bU3nE0MdUBrLbuMwEvXxyc7';
+const LARK_BASE_TOKEN = process.env.LARK_BASE_TOKEN || 'ZGJZbg5gnamSsPs4Q6SjKUqJpqb'; // Base App Token from URL
+const LARK_TABLE_MEETINGS = process.env.LARK_TABLE_MEETINGS || 'tblGaHgpPwH1iB3U';
+const LARK_TABLE_RESPONSES = process.env.LARK_TABLE_RESPONSES || 'tbl5LZCZGu5SGLZw';
 
 // Local fallback store for development or before Lark credentials are provided
 interface LocalStore {

@@ -35,7 +35,7 @@ export default function HomePage() {
       if (saved) {
         setRecentPlans(JSON.parse(saved));
       }
-    } catch {}
+    } catch { }
   }, []);
 
   // Quick presets for dates

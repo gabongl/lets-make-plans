@@ -2547,7 +2547,7 @@ function PlanDetailView({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className={`grid ${meeting.locations && meeting.locations.length > 0 ? 'grid-cols-2' : 'grid-cols-1'} gap-2.5`}>
               {/* 전원 가능일 KPI 카드 */}
               <div
                 onClick={() => {
@@ -2612,49 +2612,51 @@ function PlanDetailView({
                 </div>
               </div>
 
-              {/* 선호 장소 KPI 카드 (공동 1위 동률 완벽 지원) */}
-              <div className="p-3 rounded-xl bg-[#0a1426] border border-[#1c2d52]">
-                <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-[10px] font-bold flex items-center gap-1">
-                    <MapPin className="w-3 h-3 text-amber-400" />
-                    <span>{topLocations.length > 1 ? '공동 1위 장소' : '선호 1위 장소'}</span>
-                  </span>
-                  {maxLocationVotes > 0 && (
-                    <span className="text-[9px] font-black text-amber-400 bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-600/40">
-                      {topLocations.length > 1 ? '공동 1위 👑' : '1위 👑'}
+              {/* 선호 장소 KPI 카드 (장소 후보가 등록된 경우에만 표시) */}
+              {meeting.locations && meeting.locations.length > 0 && (
+                <div className="p-3 rounded-xl bg-[#0a1426] border border-[#1c2d52]">
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span className="text-[10px] font-bold flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-amber-400" />
+                      <span>{topLocations.length > 1 ? '공동 1위 장소' : '선호 1위 장소'}</span>
                     </span>
-                  )}
-                </div>
-                <div className="mt-1.5">
-                  {maxLocationVotes > 0 ? (
-                    <div>
-                      <p className="text-xs sm:text-sm font-black text-amber-300 leading-snug break-keep">
-                        {topLocations.map((l) => l.location).join(', ')}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                        {topLocations.map((l) => (
-                          <button
-                            key={l.location}
-                            type="button"
-                            onClick={() => setMapTargetLocation(l.location)}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-[#142343] hover:bg-[#1f3768] text-sky-300 border border-[#263e70] transition active:scale-95"
-                          >
-                            <Compass className="w-2.5 h-2.5 text-sky-400" />
-                            <span>{l.location} 지도</span>
-                          </button>
-                        ))}
+                    {maxLocationVotes > 0 && (
+                      <span className="text-[9px] font-black text-amber-400 bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-600/40">
+                        {topLocations.length > 1 ? '공동 1위 👑' : '1위 👑'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1.5">
+                    {maxLocationVotes > 0 ? (
+                      <div>
+                        <p className="text-xs sm:text-sm font-black text-amber-300 leading-snug break-keep">
+                          {topLocations.map((l) => l.location).join(', ')}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          {topLocations.map((l) => (
+                            <button
+                              key={l.location}
+                              type="button"
+                              onClick={() => setMapTargetLocation(l.location)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-[#142343] hover:bg-[#1f3768] text-sky-300 border border-[#263e70] transition active:scale-95"
+                            >
+                              <Compass className="w-2.5 h-2.5 text-sky-400" />
+                              <span>{l.location} 지도</span>
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[10px] font-bold text-slate-400 mt-1">
+                          {topLocations.length > 1
+                            ? `총 ${topLocations.length}곳 각 ${maxLocationVotes}표 동률`
+                            : `${maxLocationVotes}표 획득`}
+                        </p>
                       </div>
-                      <p className="text-[10px] font-bold text-slate-400 mt-1">
-                        {topLocations.length > 1
-                          ? `총 ${topLocations.length}곳 각 ${maxLocationVotes}표 동률`
-                          : `${maxLocationVotes}표 획득`}
-                      </p>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-slate-500 font-medium">아직 투표 없음</span>
-                  )}
+                    ) : (
+                      <span className="text-xs text-slate-500 font-medium">아직 투표 없음</span>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* 원클릭 가이드 안내문 */}

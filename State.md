@@ -33,8 +33,11 @@
 - **현실 모임 맞춤형 '정시 참석 vs 늦은 참석(늦참)' 체계**:
   - `meetingTime` 기준 🟢 정시 참석 vs 🟠 스마트 늦참(+30분, +1시간 등) 분기 및 공지문 연동
 - **로컬 네트워크 모바일 접속 주소**: `http://192.168.0.6:5173/` (Vite `--host`)
-- **현재 진행 단계**: 🚀 **[Lark Base 실시간 클라우드 DB 연동 완료 & GitHub/Vercel 최종 배포 단계]**
+- **현재 진행 단계**: 🚀 **[GitHub(gabongl/lets-make-plans) 푸시 완료 & Vercel 최종 배포 단계]**
 - **최근 해결 내역 (스마트리 피드백)**:
+  - 🐙 **GitHub 원격 저장소(`gabongl/lets-make-plans`) 푸시 100% 완료**:
+    - `main` 브랜치 최초 커밋 및 원격 푸시 성공 (`https://github.com/gabongl/lets-make-plans.git`).
+    - API 보안을 위해 토큰 및 민감 환경 변수(`.env`)는 `.gitignore`로 철저히 보호.
   - 🌐 **Lark Base(Bitable) 클라우드 중앙 DB 실시간 연동 100% 성공**:
     - 대표님의 기존 커스텀 앱(`DFM_VodaPure_Data_Collector`, `cli_a956e36179b8de15`)을 신규 Base(`ZGJZbg5gnamSsPs4Q6SjKUqJpqb`)에 공동 작업자로 연동 완료.
     - 다람쥐 부장이 API를 통해 `meetings` 테이블(`tblGaHgpPwH1iB3U`)과 `responses` 테이블(`tbl5LZCZGu5SGLZw`)의 16개 필수 컬럼(필드)을 자동 생성 완료.

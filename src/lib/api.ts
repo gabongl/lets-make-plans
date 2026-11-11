@@ -244,17 +244,18 @@ export const api = {
       // fallback
     }
 
+    const trimmedName = participantName.trim();
     const { meetings, responses } = getLocalData();
     const list = responses[meetingId] || [];
     const newResp: ParticipantResponse = {
       id: `resp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       meetingId,
-      participantName: participantName.trim(),
+      participantName: trimmedName,
       selectedLocations,
       selections,
       submittedAt: new Date().toISOString(),
     };
-    const existingIdx = list.findIndex((r) => r.participantName === participantName.trim());
+    const existingIdx = list.findIndex((r) => (r.participantName || '').trim() === trimmedName);
     if (existingIdx >= 0) {
       list[existingIdx] = newResp;
     } else {

@@ -1506,6 +1506,19 @@ function EditPlanModal({
   );
 }
 
+function deduplicateClientResponses(list: ParticipantResponse[]): ParticipantResponse[] {
+  const byName = new Map<string, ParticipantResponse>();
+  for (const item of list) {
+    const key = (item.participantName || '').trim();
+    if (!key) continue;
+    const prev = byName.get(key);
+    if (!prev || (item.submittedAt || '') >= (prev.submittedAt || '')) {
+      byName.set(key, { ...item, participantName: key });
+    }
+  }
+  return Array.from(byName.values());
+}
+
 // ============================================================================
 // 2. PLAN DETAIL VIEW (개설자 권한 분리 + 일자 전체보기 + 일자 선택취소 모달)
 // ============================================================================
@@ -1534,6 +1547,8 @@ function PlanDetailView({
   const [participantName, setParticipantName] = useState(prefilledName || '');
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [mySelections, setMySelections] = useState<Record<string, DateSelection>>({});
+  const [isUnableAll, setIsUnableAll] = useState(false);
+  const [showUnableConfirmModal, setShowUnableConfirmModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [targetGuestName, setTargetGuestName] = useState('');
@@ -1562,6 +1577,7 @@ function PlanDetailView({
     setResponses([]);
     setMySelections({});
     setSelectedLocations([]);
+    setIsUnableAll(false);
     setHasSubmitted(false);
     setShowCelebration(false);
     setShowZeroMatchModal(false);
@@ -1575,10 +1591,12 @@ function PlanDetailView({
       setHasSubmitted(false);
       return;
     }
-    const prev = responses.find((r) => r.participantName.trim() === trimmed);
+    const prev = responses.find((r) => (r.participantName || '').trim() === trimmed);
     if (prev) {
-      setMySelections(prev.selections || {});
+      const prevSels = prev.selections || {};
+      setMySelections(prevSels);
       setSelectedLocations(prev.selectedLocations || []);
+      setIsUnableAll(Object.keys(prevSels).length === 0);
       setHasSubmitted(true);
     } else {
       setHasSubmitted(false);
@@ -1590,7 +1608,7 @@ function PlanDetailView({
       const data = await api.getMeeting(planId);
       if (data) {
         setMeeting(data);
-        const respList = data.responses || [];
+        const respList = deduplicateClientResponses(data.responses || []);
         setResponses(respList);
 
         // Check Host Authority
@@ -1612,14 +1630,16 @@ function PlanDetailView({
         }
 
         const savedName = localStorage.getItem(`plan_name_${planId}`);
-        const effectiveName = prefilledName || (isHost ? data.hostName : savedName || '');
+        const effectiveName = (prefilledName || (isHost ? data.hostName : savedName || '')).trim();
 
         if (effectiveName) {
           setParticipantName(effectiveName);
-          const prev = respList.find((r) => r.participantName === effectiveName);
+          const prev = respList.find((r) => (r.participantName || '').trim() === effectiveName);
           if (prev) {
-            setMySelections(prev.selections || {});
+            const prevSels = prev.selections || {};
+            setMySelections(prevSels);
             setSelectedLocations(prev.selectedLocations || []);
+            setIsUnableAll(Object.keys(prevSels).length === 0);
             setHasSubmitted(true);
           }
         }
@@ -1768,10 +1788,23 @@ function PlanDetailView({
     );
   };
 
+  const handleToggleUnableAll = () => {
+    if (!isUnableAll) {
+      setIsUnableAll(true);
+      setMySelections({});
+      setSelectedLocations([]);
+      toast('🚫 "전 일정 불가(불참)" 상태로 설정되었습니다. 아래 제출 버튼을 눌러주세요.', 'info');
+    } else {
+      setIsUnableAll(false);
+      toast('가능한 날짜를 캘린더에서 선택해 주세요.', 'info');
+    }
+  };
+
   // 🗓️ DATE CLICK HANDLER (첫 클릭 = 정시 참석, 이미 선택된 날 = 늦참/취소 모달 오픈)
   const handleDayClickInVote = (dateStr: string) => {
     const current = mySelections[dateStr];
     if (!current) {
+      if (isUnableAll) setIsUnableAll(false);
       // First click: select ALL_DAY immediately (정시 참석)
       setMySelections((prev) => ({
         ...prev,
@@ -1825,14 +1858,13 @@ function PlanDetailView({
     toast(`${dateModalTarget} 선택이 취소(해제)되었습니다.`, 'info');
   };
 
-  const handleSubmitResponse = async () => {
-    if (!participantName.trim()) {
+  const submitVoteInternal = async (
+    selectionsToSubmit: Record<string, DateSelection>,
+    locationsToSubmit: string[]
+  ) => {
+    const trimmedName = participantName.trim();
+    if (!trimmedName) {
       toast('참여자 닉네임을 입력해주세요.', 'warning');
-      return;
-    }
-    const count = Object.keys(mySelections).length;
-    if (count === 0) {
-      toast('가능한 날짜를 최소 하루 이상 캘린더에서 터치해 주세요.', 'warning');
       return;
     }
 
@@ -1840,20 +1872,39 @@ function PlanDetailView({
     try {
       const res = await api.submitResponse(
         planId,
-        participantName.trim(),
-        mySelections,
-        selectedLocations
+        trimmedName,
+        selectionsToSubmit,
+        locationsToSubmit
       );
+      setParticipantName(trimmedName);
       setHasSubmitted(true);
-      localStorage.setItem(`plan_name_${planId}`, participantName.trim());
-      setResponses(res.allResponses);
+      localStorage.setItem(`plan_name_${planId}`, trimmedName);
+      setResponses(deduplicateClientResponses(res.allResponses));
       setActiveTab('RESULTS');
-      toast('🎉 내 투표가 완료되었습니다! 전체 결과를 확인해 보세요.');
+      if (Object.keys(selectionsToSubmit).length === 0) {
+        toast('🚫 "전 일정 불가(불참)" 의사가 정상 전달되었습니다.');
+      } else {
+        toast('🎉 내 투표가 완료되었습니다! 전체 결과를 확인해 보세요.');
+      }
     } catch {
       toast('저장 중 오류가 발생했습니다.', 'warning');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmitResponse = async () => {
+    if (!participantName.trim()) {
+      toast('참여자 닉네임을 입력해주세요.', 'warning');
+      return;
+    }
+    const count = Object.keys(mySelections).length;
+    if (count === 0 && !isUnableAll) {
+      setShowUnableConfirmModal(true);
+      return;
+    }
+
+    await submitVoteInternal(mySelections, isUnableAll ? [] : selectedLocations);
   };
 
   const handleDeleteThisRoom = async () => {
@@ -1954,13 +2005,15 @@ function PlanDetailView({
         : '';
 
     const agg = aggregatedResults[targetDate];
+    const attendingNames = agg?.participants?.map((p) => p.name) || [];
+    const attendingCount = attendingNames.length;
     const lateArrivals = agg?.participants
       ?.filter((p) => p.type === 'CONDITIONAL' && p.note)
       ?.map((p) => `  - ${p.name}: ${p.note}`)
       ?.join('\n');
     const lateText = lateArrivals ? `\n⏰ 늦참자 안내:\n${lateArrivals}` : '';
 
-    const text = `[Let's make plans! 👑 주관자 최종 확정 공지]\n"${meeting.title}" 약속 날짜와 장소가 최종 확정되었습니다!\n\n📅 최종 일시: ${targetDate} (${meetingTime})${locNote}${lateText}\n👥 참석자(${responses.length}명): ${responses.map((r) => r.participantName).join(', ')}\n\n주관자 ${meeting.hostName} 올림. 늦지 않게 만나요! 🍻`;
+    const text = `[Let's make plans! 👑 주관자 최종 확정 공지]\n"${meeting.title}" 약속 날짜와 장소가 최종 확정되었습니다!\n\n📅 최종 일시: ${targetDate} (${meetingTime})${locNote}${lateText}\n👥 참석자(${attendingCount}명): ${attendingNames.join(', ')}\n\n주관자 ${meeting.hostName} 올림. 늦지 않게 만나요! 🍻`;
     const ok = await copyToClipboardRobust(text);
     if (ok) {
       toast('👑 [주관자 최종 확정 공지] 문구가 클립보드에 복사되었습니다!');
@@ -2161,19 +2214,28 @@ function PlanDetailView({
             </span>
           </div>
           <div className="flex items-center gap-1 text-[11px] flex-wrap justify-end">
-            {responses.map((r) => (
-              <span
-                key={r.participantName}
-                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
-                  r.participantName === participantName
-                    ? 'bg-sky-950 text-sky-300 border-sky-600'
-                    : 'bg-[#15223e] text-slate-300 border-[#23355e]'
-                }`}
-              >
-                {r.participantName}
-                {r.participantName === participantName && ' (나)'}
-              </span>
-            ))}
+            {responses.map((r) => {
+              const isMe = (r.participantName || '').trim() === participantName.trim();
+              const isNoDates = Object.keys(r.selections || {}).length === 0;
+              return (
+                <span
+                  key={r.participantName}
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                    isMe
+                      ? isNoDates
+                        ? 'bg-rose-950/80 text-rose-300 border-rose-500'
+                        : 'bg-sky-950 text-sky-300 border-sky-600'
+                      : isNoDates
+                      ? 'bg-rose-950/40 text-rose-300 border-rose-700/50'
+                      : 'bg-[#15223e] text-slate-300 border-[#23355e]'
+                  }`}
+                >
+                  {r.participantName}
+                  {isNoDates && ' (불참)'}
+                  {isMe && ' (나)'}
+                </span>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -2254,7 +2316,10 @@ function PlanDetailView({
             }`}
           >
             <CalendarIcon className="w-3.5 h-3.5" />
-            <span>내 투표하기 {selectedCount > 0 && `(${selectedCount})`}</span>
+            <span>
+              내 투표하기{' '}
+              {isUnableAll ? '(불가)' : selectedCount > 0 && `(${selectedCount})`}
+            </span>
           </button>
           <button
             onClick={() => setActiveTab('RESULTS')}
@@ -2385,6 +2450,35 @@ function PlanDetailView({
           <p className="text-[11px] text-slate-400 px-1">
             💡 <strong>1번 탭</strong>: 정시 참석({meetingTime}) 지정 | <strong>선택된 날짜 탭</strong>: 늦은 참석(늦참) 설정 또는 <strong>선택 취소(해제)</strong>
           </p>
+
+          {/* 🚫 All Dates Unavailable (전 일정 불가) Quick Toggle */}
+          <button
+            type="button"
+            onClick={handleToggleUnableAll}
+            className={`w-full py-2.5 px-3.5 rounded-xl border text-xs font-bold flex items-center justify-between transition active:scale-[0.99] ${
+              isUnableAll
+                ? 'bg-rose-950/70 border-rose-500 text-rose-200 shadow-md shadow-rose-950/40'
+                : 'bg-[#101932] hover:bg-[#162244] border-[#253866] text-slate-300'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <span>🚫</span>
+              <span>
+                {isUnableAll
+                  ? '전 일정 불가(불참)로 선택됨 — 아래 제출 버튼을 눌러주세요'
+                  : '가능한 날짜가 하루도 없어요 (전 일정 불가)'}
+              </span>
+            </span>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-md font-extrabold flex-shrink-0 ${
+                isUnableAll
+                  ? 'bg-rose-500 text-white'
+                  : 'bg-[#1a294d] text-slate-400 border border-[#2a3f73]'
+              }`}
+            >
+              {isUnableAll ? '선택됨 ✓' : '선택하기'}
+            </span>
+          </button>
 
           {/* Multi-month Continuous Calendar Grid */}
           <div className="space-y-6">
@@ -2927,9 +3021,15 @@ function PlanDetailView({
                           </span>
                         )}
                         {(!sel || sel.type === 'UNAVAILABLE') && (
-                          <span className="px-2 py-0.5 bg-[#17223e] text-slate-400 font-medium rounded-md border border-[#23355e]">
-                            참석 불가 ❌
-                          </span>
+                          Object.keys(r.selections || {}).length === 0 ? (
+                            <span className="px-2 py-0.5 bg-rose-950/80 text-rose-300 font-bold rounded-md border border-rose-700/60">
+                              전 일정 불가 🚫
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-[#17223e] text-slate-400 font-medium rounded-md border border-[#23355e]">
+                              참석 불가 ❌
+                            </span>
+                          )
                         )}
                       </div>
                     );
@@ -2979,10 +3079,18 @@ function PlanDetailView({
             <button
               onClick={handleSubmitResponse}
               disabled={isSubmitting}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-extrabold rounded-2xl shadow-xl shadow-blue-600/35 flex items-center justify-center gap-2 transition disabled:opacity-50"
+              className={`w-full py-3.5 active:scale-[0.98] text-white font-extrabold rounded-2xl shadow-xl flex items-center justify-center gap-2 transition disabled:opacity-50 ${
+                isUnableAll
+                  ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/35'
+                  : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/35'
+              }`}
             >
               {isSubmitting ? (
-                <span className="text-sm">일정 및 장소 저장 중...</span>
+                <span className="text-sm">투표 내용 저장 중...</span>
+              ) : isUnableAll ? (
+                <span className="text-sm">
+                  {hasSubmitted ? "🚫 '전 일정 불가'로 투표 수정 제출" : "🚫 '전 일정 불가(불참)'로 제출하기"}
+                </span>
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4 text-sky-200" />
@@ -2992,6 +3100,42 @@ function PlanDetailView({
                 </>
               )}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 🚫 Confirm Modal when submitting 0 dates without toggling isUnableAll */}
+      {showUnableConfirmModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#131d38] w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-rose-500/40 text-center animate-in zoom-in duration-200">
+            <div className="w-12 h-12 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center mx-auto mb-3 text-2xl">
+              🚫
+            </div>
+            <h3 className="text-base font-black text-white">가능한 날짜가 하나도 없으신가요?</h3>
+            <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+              선택한 날짜 없이 <strong className="text-rose-300">'전 일정 불가(불참)'</strong>로 의사를 전달하거나, 돌아가서 가능한 날짜를 선택하실 수 있습니다.
+            </p>
+            <div className="mt-5 space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsUnableAll(true);
+                  setSelectedLocations([]);
+                  setShowUnableConfirmModal(false);
+                  submitVoteInternal({}, []);
+                }}
+                className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold rounded-xl shadow-lg shadow-rose-600/30 transition active:scale-[0.98]"
+              >
+                🚫 네, 전 일정 불가(불참)로 제출하기
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowUnableConfirmModal(false)}
+                className="w-full py-2.5 bg-[#17223e] hover:bg-[#203056] text-slate-300 text-xs font-bold rounded-xl border border-[#283d6a] transition"
+              >
+                📅 돌아가서 날짜 선택하기
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -3332,7 +3476,7 @@ function PlanDetailView({
 
             {/* Best Alternative Card */}
             <div className="my-4 space-y-2">
-              {bestMatches.length > 0 && (
+              {bestMatches.length > 0 ? (
                 <div className="p-3.5 bg-[#0a1224] border border-sky-500/40 rounded-2xl text-left">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-sky-400">
@@ -3348,6 +3492,15 @@ function PlanDetailView({
                       (정시 {bestMatches[0].allDayCount}명
                       {bestMatches[0].conditionalCount > 0 && `, 늦참 ${bestMatches[0].conditionalCount}명`})
                     </span>
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-rose-950/30 border border-rose-500/30 rounded-2xl text-left">
+                  <p className="text-xs font-bold text-rose-300">
+                    🚫 후보 날짜 중 가능한 날을 선택한 참여자가 없습니다.
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    다른 기간이나 요일로 후보 날짜를 수정하여 재투표를 진행해 보세요.
                   </p>
                 </div>
               )}

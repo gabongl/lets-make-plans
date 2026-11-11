@@ -84,6 +84,19 @@ async function getLarkTenantAccessToken(): Promise<string | null> {
   }
 }
 
+function deduplicateResponses(list: ParticipantResponse[]): ParticipantResponse[] {
+  const byName = new Map<string, ParticipantResponse>();
+  for (const item of list) {
+    const key = (item.participantName || '').trim();
+    if (!key) continue;
+    const prev = byName.get(key);
+    if (!prev || (item.submittedAt || '') >= (prev.submittedAt || '')) {
+      byName.set(key, { ...item, participantName: key });
+    }
+  }
+  return Array.from(byName.values());
+}
+
 export const db = {
   isLarkConfigured(): boolean {
     return !!(LARK_APP_ID && LARK_APP_SECRET && LARK_BASE_TOKEN && LARK_TABLE_MEETINGS && LARK_TABLE_RESPONSES);
@@ -289,33 +302,84 @@ export const db = {
 
   async addResponse(meetingId: string, response: ParticipantResponse): Promise<ParticipantResponse> {
     const token = await getLarkTenantAccessToken();
+    const targetName = (response.participantName || '').trim();
+    const normalizedResponse: ParticipantResponse = { ...response, participantName: targetName };
 
     if (token && LARK_BASE_TOKEN && LARK_TABLE_RESPONSES) {
       try {
-        const res = await fetch(
-          `${LARK_API_DOMAIN}/open-apis/bitable/v1/apps/${LARK_BASE_TOKEN}/tables/${LARK_TABLE_RESPONSES}/records`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              fields: {
-                meeting_id: meetingId,
-                participant_name: response.participantName,
-                selections: JSON.stringify(response.selections),
-                selected_locations: JSON.stringify(response.selectedLocations || []),
-                submitted_at: response.submittedAt,
-              },
-            }),
-          }
+        const searchRes = await fetch(
+          `${LARK_API_DOMAIN}/open-apis/bitable/v1/apps/${LARK_BASE_TOKEN}/tables/${LARK_TABLE_RESPONSES}/records?page_size=500&filter=CurrentValue.[meeting_id]=%22${encodeURIComponent(
+            meetingId
+          )}%22`,
+          { headers: { Authorization: `Bearer ${token}` } }
         );
-        const data = await res.json();
-        if (data.code === 0) {
-          return response;
+        const searchData = await searchRes.json();
+        const matchingItems =
+          searchData.code === 0 && searchData.data?.items
+            ? searchData.data.items.filter(
+                (item: any) => (item.fields?.participant_name || '').trim() === targetName
+              )
+            : [];
+
+        const fields = {
+          meeting_id: meetingId,
+          participant_name: targetName,
+          selections: JSON.stringify(normalizedResponse.selections || {}),
+          selected_locations: JSON.stringify(normalizedResponse.selectedLocations || []),
+          submitted_at: normalizedResponse.submittedAt,
+        };
+
+        if (matchingItems.length > 0) {
+          const primaryRecordId = matchingItems[0].record_id;
+          const putRes = await fetch(
+            `${LARK_API_DOMAIN}/open-apis/bitable/v1/apps/${LARK_BASE_TOKEN}/tables/${LARK_TABLE_RESPONSES}/records/${primaryRecordId}`,
+            {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ fields }),
+            }
+          );
+          const putData = await putRes.json();
+
+          if (matchingItems.length > 1) {
+            for (let i = 1; i < matchingItems.length; i++) {
+              try {
+                await fetch(
+                  `${LARK_API_DOMAIN}/open-apis/bitable/v1/apps/${LARK_BASE_TOKEN}/tables/${LARK_TABLE_RESPONSES}/records/${matchingItems[i].record_id}`,
+                  {
+                    method: 'DELETE',
+                    headers: { Authorization: `Bearer ${token}` },
+                  }
+                );
+              } catch {}
+            }
+          }
+
+          if (putData.code === 0) {
+            return { ...normalizedResponse, id: primaryRecordId };
+          }
+          console.warn('Lark updateResponse returned non-zero code:', putData);
+        } else {
+          const res = await fetch(
+            `${LARK_API_DOMAIN}/open-apis/bitable/v1/apps/${LARK_BASE_TOKEN}/tables/${LARK_TABLE_RESPONSES}/records`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ fields }),
+            }
+          );
+          const data = await res.json();
+          if (data.code === 0) {
+            return normalizedResponse;
+          }
+          console.warn('Lark addResponse returned non-zero code, falling back:', data);
         }
-        console.warn('Lark addResponse returned non-zero code, falling back:', data);
       } catch (err) {
         console.error('Lark addResponse error, falling back:', err);
       }
@@ -328,15 +392,15 @@ export const db = {
     }
     // Update existing response if participant already submitted, or add new
     const existingIndex = store.responses[meetingId].findIndex(
-      (r) => r.participantName === response.participantName
+      (r) => (r.participantName || '').trim() === targetName
     );
     if (existingIndex >= 0) {
-      store.responses[meetingId][existingIndex] = response;
+      store.responses[meetingId][existingIndex] = normalizedResponse;
     } else {
-      store.responses[meetingId].push(response);
+      store.responses[meetingId].push(normalizedResponse);
     }
     saveLocalStore(store);
-    return response;
+    return normalizedResponse;
   },
 
   async getResponses(meetingId: string): Promise<ParticipantResponse[]> {
@@ -345,7 +409,7 @@ export const db = {
     if (token && LARK_BASE_TOKEN && LARK_TABLE_RESPONSES) {
       try {
         const res = await fetch(
-          `${LARK_API_DOMAIN}/open-apis/bitable/v1/apps/${LARK_BASE_TOKEN}/tables/${LARK_TABLE_RESPONSES}/records?filter=CurrentValue.[meeting_id]=%22${encodeURIComponent(
+          `${LARK_API_DOMAIN}/open-apis/bitable/v1/apps/${LARK_BASE_TOKEN}/tables/${LARK_TABLE_RESPONSES}/records?page_size=500&filter=CurrentValue.[meeting_id]=%22${encodeURIComponent(
             meetingId
           )}%22`,
           {
@@ -354,7 +418,7 @@ export const db = {
         );
         const data = await res.json();
         if (data.code === 0 && data.data?.items) {
-          return data.data.items.map((item: any) => {
+          const mapped = data.data.items.map((item: any) => {
             const f = item.fields;
             let selections = {};
             try {
@@ -369,12 +433,13 @@ export const db = {
             return {
               id: item.record_id,
               meetingId: f.meeting_id,
-              participantName: f.participant_name,
+              participantName: (f.participant_name || '').trim(),
               selections,
               selectedLocations,
               submittedAt: f.submitted_at,
             };
           });
+          return deduplicateResponses(mapped);
         }
       } catch (err) {
         console.error('Lark getResponses error, falling back:', err);
@@ -382,7 +447,7 @@ export const db = {
     }
 
     const store = loadLocalStore();
-    return store.responses[meetingId] || [];
+    return deduplicateResponses(store.responses[meetingId] || []);
   },
 };
 
